@@ -1,0 +1,46 @@
+global:
+  enabled: true
+  tlsDisable: true
+
+server:
+  image:
+    repository: hashicorp/vault
+    tag: "1.18.1"
+
+  ha:
+    enabled: true
+    # Set to 1 for single-node k3s playgrounds (the default Vault chart sets
+    # pod anti-affinity, so replicas can't co-locate on one node). Bump to
+    # 3 on multi-node clusters and the chart will form a real Raft quorum.
+    replicas: 1
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+        listener "tcp" {
+          tls_disable = 1
+          address     = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+        storage "raft" {
+          path = "/vault/data"
+        }
+        service_registration "kubernetes" {}
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8200
+
+  dataStorage:
+    enabled: true
+    size: 1Gi
+    storageClass: null
+
+ui:
+  enabled: true
+  serviceType: ClusterIP
+
+injector:
+  enabled: false

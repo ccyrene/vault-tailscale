@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-config
+  namespace: app
+data:
+  agent.hcl: |
+    pid_file = "/home/vault/pidfile"
+    exit_after_auth = false
+
+    auto_auth {
+      method "jwt" {
+        mount_path = "auth/jwt-cluster-b"
+        config = {
+          role                     = "app"
+          path                     = "/var/run/secrets/tokens/vault-jwt"
+          remove_jwt_after_reading = false
+        }
+      }
+      sink "file" {
+        config = {
+          path = "/home/vault/.vault-token"
+        }
+      }
+    }
+
+    template {
+      destination = "/vault/secrets/credentials"
+      contents    = "{{ with secret \"secret/data/app/credentials\" -}}\nUSERNAME={{ .Data.data.username }}\nPASSWORD={{ .Data.data.password }}\nROTATED_AT={{ timestamp }}\n{{- end }}\n"
+    }
+
+    vault {
+      address = "http://vault-cluster-a:8200"
+    }

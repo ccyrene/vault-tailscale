@@ -1,0 +1,5 @@
+.env
+.vault-init.json
+*.tar
+.kubeconfig
+.logs/

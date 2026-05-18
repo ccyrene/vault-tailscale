@@ -1,0 +1,7 @@
+# Cluster B: deprecated — Tailscale now runs as a sidecar inside the app pod
+# (see app/k8s/deployment.yaml). This file is kept only for reference.
+#
+# Why no separate router on Cluster B? With the egress-proxy pattern on
+# Cluster A, the app on Cluster B just needs to BE a tailnet node so it can
+# resolve `vault-cluster-a` via MagicDNS. A pod-level sidecar is simpler
+# than a cluster-wide router and avoids the dual-CIDR overlap issue.
