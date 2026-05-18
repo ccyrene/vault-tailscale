@@ -13,7 +13,8 @@
 #   KUBECONFIG_B         cluster B (needed to read its JWKS once)
 
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Script lives at vault/bootstrap/, so two levels up is the project root.
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 NS="${VAULT_NAMESPACE:-vault}"
 LEADER="vault-0"
 

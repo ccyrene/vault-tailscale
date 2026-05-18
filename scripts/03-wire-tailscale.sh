@@ -20,13 +20,38 @@ echo "==> [A] applying vault-tailscale-proxy"
 kubectl apply -f "${ROOT}/tailscale/cluster-a-router.yaml"
 kubectl -n tailscale rollout status deploy/vault-tailscale-proxy --timeout=180s
 
-echo "==> [A] proxy joined tailnet as:"
-kubectl -n tailscale exec deploy/vault-tailscale-proxy -- tailscale status 2>&1 \
-  | grep -v 'Defaulted container' | head -5
+echo "==> [A] waiting for proxy to authenticate to tailnet..."
+for i in $(seq 1 30); do
+  state=$(kubectl -n tailscale exec deploy/vault-tailscale-proxy -c tailscale -- \
+    tailscale status --json 2>/dev/null | jq -r '.BackendState' 2>/dev/null || echo "")
+  [[ "$state" == "Running" ]] && break
+  sleep 2
+done
 
-cat <<EOF
+# DNSName is the actual MagicDNS name Tailscale assigned (handles auto-suffix
+# like `-1` when a stale device still holds the requested name). HostName is
+# only what we *requested*, which may not be what we got.
+VAULT_TAILNET_HOST=$(kubectl -n tailscale exec deploy/vault-tailscale-proxy -c tailscale -- \
+  tailscale status --json | jq -r '.Self.DNSName' | cut -d. -f1)
 
-==> Done. Cluster B's Tailscale is the sidecar in the app Deployment —
-   it joins the tailnet on first apply (script 02) and discovers
-   'vault-cluster-a' via MagicDNS automatically.
-EOF
+if [[ -z "$VAULT_TAILNET_HOST" || "$VAULT_TAILNET_HOST" == "null" ]]; then
+  echo "ERROR: could not determine tailnet hostname" >&2
+  exit 1
+fi
+
+echo "==> [A] proxy joined tailnet as: ${VAULT_TAILNET_HOST}"
+if [[ "$VAULT_TAILNET_HOST" != "vault-cluster-a" ]]; then
+  echo "    (Tailscale assigned a suffix because a previous device with that"
+  echo "     name was still registered. The agent in Cluster B will use the"
+  echo "     actual hostname above via VAULT_TAILNET_HOST in .env.)"
+fi
+
+# Persist into .env so 02 picks it up.
+ENV_FILE="${ROOT}/.env"
+grep -v '^VAULT_TAILNET_HOST=' "${ENV_FILE}" > "${ENV_FILE}.new" && \
+  mv "${ENV_FILE}.new" "${ENV_FILE}"
+echo "VAULT_TAILNET_HOST=${VAULT_TAILNET_HOST}" >> "${ENV_FILE}"
+
+echo
+echo "==> Done. Re-source .env before running script 02:"
+echo "    set -a; source .env; set +a"

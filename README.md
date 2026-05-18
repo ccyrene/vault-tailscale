@@ -134,8 +134,12 @@ set -a; source .env; set +a              # re-source: script writes KUBECONFIG_A
 # 3. Vault on Cluster A: install, init, unseal, configure JWT auth for Cluster B.
 bash scripts/01-bootstrap-cluster-a.sh
 
-# 4. Tailscale egress proxy on Cluster A (exposes Vault as `vault-cluster-a` on the tailnet).
+# 4. Tailscale egress proxy on Cluster A (exposes Vault on the tailnet).
+#    Writes VAULT_TAILNET_HOST back to .env (the actual hostname Tailscale
+#    assigned, which may differ from `vault-cluster-a` if a stale ephemeral
+#    device of the same name is still registered — see Known limitations).
 bash scripts/03-wire-tailscale.sh
+set -a; source .env; set +a              # pick up VAULT_TAILNET_HOST
 
 # 5. App on Cluster B: build static Go binary, ship to k3s node, apply manifests.
 bash scripts/02-bootstrap-cluster-b.sh
@@ -355,6 +359,13 @@ Only the agent restarts — the app and the tailnet membership are untouched.
   `labctl port-forward -L` for the API server. Not a concern off iximiuz.
 - **k3s-bare is single-node** → pod anti-affinity in the Vault chart blocks
   replicas 2–3, so we run `ha.replicas: 1`. Bump on a real multi-node cluster.
+- **Stale Tailscale ephemeral devices** can linger for up to ~5 minutes after
+  the cluster they belong to is torn down. If you redeploy quickly, Tailscale
+  will auto-suffix the new device (`vault-cluster-a` → `vault-cluster-a-1`).
+  Script 03 detects this via `.Self.DNSName` and writes the **actual**
+  hostname to `VAULT_TAILNET_HOST` in `.env`; script 02 substitutes it into
+  the agent ConfigMap. You can also delete the stale devices from the
+  Tailscale admin console for a clean rerun.
 - **No image registry.** k3s-bare lacks Docker/buildah, so the app ships as
   a static Go binary via SSH and is hostPath-mounted under busybox. On a
   cluster with a registry, switch the `app` container's image to a real

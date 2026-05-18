@@ -10,6 +10,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 : "${TS_AUTHKEY:?set TS_AUTHKEY}"
 : "${KUBECONFIG_B:?source .env first}"
 : "${PLAY_B:?set PLAY_B}"
+: "${VAULT_TAILNET_HOST:?source .env first (set by scripts/03-wire-tailscale.sh)}"
 
 LABCTL=${LABCTL:-$HOME/.iximiuz/labctl/bin/labctl}
 export KUBECONFIG="${KUBECONFIG_B}"
@@ -28,7 +29,9 @@ kubectl apply -f "${ROOT}/app/k8s/serviceaccount.yaml"
 kubectl -n app create secret generic tailscale-auth \
   --from-literal=TS_AUTHKEY="${TS_AUTHKEY}" \
   --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${ROOT}/app/k8s/configmap-agent.yaml"
+# Substitute the Tailscale hostname into the agent ConfigMap.
+sed "s/VAULT_TAILNET_HOST_PLACEHOLDER/${VAULT_TAILNET_HOST}/g" \
+  "${ROOT}/app/k8s/configmap-agent.yaml" | kubectl apply -f -
 kubectl apply -f "${ROOT}/app/k8s/deployment.yaml"
 
 echo "==> [B] waiting for all 3 containers Ready (tailscale + vault-agent + app)"

@@ -18,8 +18,8 @@ require kubectl
 require jq
 
 if [[ -f "$SECRETS_FILE" ]]; then
-  echo "==> ${SECRETS_FILE} already exists; refusing to re-init. Delete it to force." >&2
-  exit 1
+  echo "==> ${SECRETS_FILE} already exists; skipping init (delete the file to force re-init)."
+  exit 0
 fi
 
 echo "==> Waiting for ${LEADER} container to be Running..."
